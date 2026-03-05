@@ -1,16 +1,20 @@
 """Huawei E8372h-320 HiLink 모뎀 CLI 도구"""
 import argparse
 import json
+import os
 import sys
 
 from huawei_lte_api.Client import Client
 from huawei_lte_api.Connection import Connection
+from huawei_lte_api.enums.sms import BoxTypeEnum
 
-MODEM_URL = 'http://192.168.8.1/'
+MODEM_URL = os.getenv('MODEM_URL', '')
+MODEM_USER = os.getenv('MODEM_USER', '')
+MODEM_PASS = os.getenv('MODEM_PASS', '')
 
 
 def connect():
-    conn = Connection(MODEM_URL)
+    conn = Connection(MODEM_URL, username=MODEM_USER, password=MODEM_PASS)
     return conn, Client(conn)
 
 
@@ -42,8 +46,10 @@ def cmd_sms_list(args):
     """SMS 목록 조회"""
     conn, client = connect()
     with conn:
+        box_map = {1: BoxTypeEnum.LOCAL_INBOX, 2: BoxTypeEnum.LOCAL_SENT, 3: BoxTypeEnum.LOCAL_DRAFT}
         sms_list = client.sms.get_sms_list(
-            args.page, BoxType=args.box, ReadCount=args.count, UnreadPreferred=1
+            args.page, box_type=box_map.get(args.box, BoxTypeEnum.LOCAL_INBOX),
+            read_count=args.count, unread_preferred=True
         )
         messages = sms_list.get('Messages', {}).get('Message', [])
         if isinstance(messages, dict):
@@ -109,7 +115,7 @@ def cmd_dump(_args):
             'device.signal': lambda: client.device.signal(),
             'device.basic_information': lambda: client.device.basic_information(),
             'sms.sms_count': lambda: client.sms.sms_count(),
-            'sms.get_sms_list(page=1)': lambda: client.sms.get_sms_list(1, BoxType=1, ReadCount=5),
+            'sms.get_sms_list(page=1)': lambda: client.sms.get_sms_list(1, box_type=BoxTypeEnum.LOCAL_INBOX, read_count=5),
             'net.current_plmn': lambda: client.net.current_plmn(),
             'net.net_mode': lambda: client.net.net_mode(),
             'monitoring.status': lambda: client.monitoring.status(),
