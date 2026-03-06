@@ -11,6 +11,9 @@
   python raw_dump.py plmn           # 통신사 정보만
   python raw_dump.py net-mode       # 네트워크 모드만
   python raw_dump.py sms-config     # SMS 설정만
+  python raw_dump.py check          # 기기정보 + SMS개수 + 신호세기 (modem.py check와 동일 범위)
+  python raw_dump.py sms-send       # SMS 발송 (⚠️ 실제 발송됨!)
+  python raw_dump.py sms-delete     # SMS 삭제 (⚠️ 실제 삭제됨!)
 """
 import os
 import sys
@@ -21,6 +24,7 @@ from huawei_lte_api.Connection import Connection
 MODEM_URL = os.getenv('MODEM_URL', '')
 MODEM_USER = os.getenv('MODEM_USER', '')
 MODEM_PASS = os.getenv('MODEM_PASS', '')
+MODEM_PHONE = os.getenv('MODEM_PHONE', '')
 
 # POST 요청이 필요한 엔드포인트와 body
 POST_ENDPOINTS = {
@@ -29,14 +33,42 @@ POST_ENDPOINTS = {
         '<?xml version="1.0" encoding="UTF-8"?>'
         '<request>'
         '<PageIndex>1</PageIndex>'
-        '<ReadCount>50</ReadCount>'
+        '<ReadCount>5</ReadCount>'
         '<BoxType>1</BoxType>'
         '<SortType>0</SortType>'
         '<Ascending>0</Ascending>'
         '<UnreadPreferred>1</UnreadPreferred>'
         '</request>'
     ),
+    'sms-delete': (
+        'api/sms/delete-sms',
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<request>'
+        '<Index>40023</Index>'
+        '</request>'
+    ),
 }
+
+
+def get_sms_send_body(phone: str = '', content: str = 'raw_dump test') -> tuple:
+    """sms-send body를 동적으로 생성 (전화번호가 env에서 옴)"""
+    p = phone or MODEM_PHONE
+    return (
+        'api/sms/send-sms',
+        f'<?xml version="1.0" encoding="UTF-8"?>'
+        f'<request>'
+        f'<Index>-1</Index>'
+        f'<Phones><Phone>{p}</Phone></Phones>'
+        f'<Sca></Sca>'
+        f'<Content>{content}</Content>'
+        f'<Length>-1</Length>'
+        f'<Reserved>1</Reserved>'
+        f'<Date>-1</Date>'
+        f'</request>'
+    )
+
+# 전체 덤프에서 제외할 커맨드 (실행 시 실제 발송/삭제됨)
+DANGEROUS_KEYS = {'sms-send', 'sms-delete'}
 
 # GET 요청 엔드포인트
 GET_ENDPOINTS = {
@@ -51,7 +83,7 @@ GET_ENDPOINTS = {
     'net-mode':  'api/net/net-mode',
 }
 
-ALL_KEYS = list(GET_ENDPOINTS.keys()) + list(POST_ENDPOINTS.keys())
+ALL_KEYS = [k for k in list(GET_ENDPOINTS.keys()) + list(POST_ENDPOINTS.keys()) if k not in DANGEROUS_KEYS]
 
 
 def get_token(session) -> str:
@@ -87,7 +119,10 @@ def dump(conn: Connection, targets: list[str]):
         print(f'{"=" * 60}')
 
         try:
-            if name in POST_ENDPOINTS:
+            if name == 'sms-send':
+                endpoint, body = get_sms_send_body()
+                result = raw_request(conn, 'POST', endpoint, body)
+            elif name in POST_ENDPOINTS:
                 endpoint, body = POST_ENDPOINTS[name]
                 result = raw_request(conn, 'POST', endpoint, body)
             elif name in GET_ENDPOINTS:
