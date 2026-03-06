@@ -1,0 +1,18 @@
+{"raw":{"Phone":"01012345678","Content":"테스트 문자","Date":"2026-03-05 14:00:00","Smstat":"0","Index":"40000"},"received_at":"2026-03-05T03:52:08.212Z"}
+{"raw":{"Smstat":"0","Index":"40002","Phone":"01094727956","Content":"hi","Date":"2026-03-05 14:47:10","Sca":null,"SaveType":"0","Priority":"0","SmsType":"1"},"received_at":"2026-03-05T05:50:38.582Z"}
+{"raw":{"Smstat":"0","Index":"40002","Phone":"01094727956","Content":"hi","Date":"2026-03-05 14:47:10","Sca":null,"SaveType":"0","Priority":"0","SmsType":"1"},"received_at":"2026-03-05T05:50:43.615Z"}
+{"raw":{"Smstat":"0","Index":"40002","Phone":"01094727956","Content":"hi","Date":"2026-03-05 14:47:10","Sca":null,"SaveType":"0","Priority":"0","SmsType":"1"},"received_at":"2026-03-05T05:50:48.645Z"}
+{"raw":{"Smstat":"0","Index":"40002","Phone":"01094727956","Content":"hi","Date":"2026-03-05 14:47:10","Sca":null,"SaveType":"0","Priority":"0","SmsType":"1"},"received_at":"2026-03-05T05:50:53.677Z"}
+{"raw":{"Smstat":"0","Index":"40002","Phone":"01094727956","Content":"hi","Date":"2026-03-05 14:47:10","Sca":null,"SaveType":"0","Priority":"0","SmsType":"1"},"received_at":"2026-03-05T05:50:58.715Z"}
+{"raw":{"Smstat":"0","Index":"40002","Phone":"01094727956","Content":"hi","Date":"2026-03-05 14:47:10","Sca":null,"SaveType":"0","Priority":"0","SmsType":"1"},"received_at":"2026-03-05T05:51:03.753Z"}
+{"raw":{"Smstat":"0","Index":"40002","Phone":"01094727956","Content":"hi","Date":"2026-03-05 14:47:10","Sca":null,"SaveType":"0","Priority":"0","SmsType":"1"},"received_at":"2026-03-05T05:51:08.788Z"}
+{"raw":{"Smstat":"0","Index":"40002","Phone":"01094727956","Content":"hi","Date":"2026-03-05 14:47:10","Sca":null,"SaveType":"0","Priority":"0","SmsType":"1"},"received_at":"2026-03-05T06:05:58.567Z"}
+{"raw":{"Smstat":"0","Index":"40006","Phone":"01094727956","Content":"앙뇽","Date":"2026-03-05 15:06:22","Sca":null,"SaveType":"0","Priority":"0","SmsType":"1"},"received_at":"2026-03-05T06:06:23.805Z"}
+{"raw":{"Smstat":"0","Index":"40007","Phone":"01094727956","Content":"우히히","Date":"2026-03-05 15:07:17","Sca":null,"SaveType":"0","Priority":"0","SmsType":"1"},"received_at":"2026-03-05T06:07:19.218Z"}
+{"raw":{"Smstat":"0","Index":"40008","Phone":"01094727956","Content":"재밌당","Date":"2026-03-05 15:07:20","Sca":null,"SaveType":"0","Priority":"0","SmsType":"1"},"received_at":"2026-03-05T06:07:24.298Z"}
+{"raw":{"Smstat":"0","Index":"40009","Phone":"01094727956","Content":"음 raw 데이터로 읽어야겠더","Date":"2026-03-05 15:08:00","Sca":null,"SaveType":"0","Priority":"0","SmsType":"1"},"received_at":"2026-03-05T06:08:04.204Z"}
+{"raw":{"Smstat":"0","Index":"40010","Phone":"01094727956","Content":"안읽어볼까","Date":"2026-03-05 15:12:07","Sca":null,"SaveType":"0","Priority":"0","SmsType":"1"},"received_at":"2026-03-05T06:12:42.935Z"}
+{"raw":{"Smstat":"0","Index":"40011","Phone":"01094727956","Content":"테스트","Date":"2026-03-05 15:13:34","Sca":null,"SaveType":"0","Priority":"0","SmsType":"1"},"received_at":"2026-03-05T06:13:38.385Z"}
+{"raw":{"Smstat":"0","Index":"40012","Phone":"01094727956","Content":"??","Date":"2026-03-05 15:16:01","Sca":null,"SaveType":"0","Priority":"0","SmsType":"1"},"received_at":"2026-03-05T06:16:04.584Z"}
+{"raw":{"Smstat":"0","Index":"40014","Phone":"01094727956","Content":"??","Date":"2026-03-05 15:30:09","Sca":null,"SaveType":"0","Priority":"0","SmsType":"1"},"received_at":"2026-03-05T06:30:34.582Z"}
+{"raw":{"Smstat":"0","Index":"40015","Phone":"01094727956","Content":"융","Date":"2026-03-05 15:30:58","Sca":null,"SaveType":"0","Priority":"0","SmsType":"1"},"received_at":"2026-03-05T06:31:04.914Z"}
