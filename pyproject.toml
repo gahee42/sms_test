@@ -1,0 +1,10 @@
+[project]
+name = "sms-test"
+version = "0.1.0"
+description = "Huawei E8372 모뎀 SMS 수신/답장 자동화"
+requires-python = ">=3.11"
+dependencies = [
+    "huawei-lte-api",
+    "requests",
+    "aiohttp",
+]
