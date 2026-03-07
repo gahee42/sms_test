@@ -33,11 +33,12 @@ async def poll_loop(modem):
                 # 3. 답장 생성
                 replies = reply.generate(messages)
 
-                # 4. 답장 발송
+                # 4. 답장 발송 (모뎀 처리 간격 2초)
                 for r in replies:
                     try:
                         await modem.send_sms(r['phone'], r['message'])
                         print(f'[폴러] 답장 발송 → {r["phone"]}')
+                        await asyncio.sleep(2)
                     except Exception as e:
                         print(f'[폴러] 답장 실패: {e}')
 
