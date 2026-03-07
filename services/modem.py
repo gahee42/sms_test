@@ -52,10 +52,9 @@ class ModemService:
                 content = sms.get('Content') or ''
                 index = int(sms.get('Index', 0))
 
-                if MMS_PATTERN in content:
-                    self.client.sms.delete_sms(index)
-                    print(f'[모뎀] MMS 삭제 [{index}]')
-                    continue
+                is_mms = MMS_PATTERN in content
+                if is_mms:
+                    print(f'[모뎀] MMS 감지 [{index}]')
 
                 messages.append({
                     'index': index,
@@ -63,6 +62,7 @@ class ModemService:
                     'content': content,
                     'date': sms.get('Date', ''),
                     'smsType': int(sms.get('SmsType', 1)),
+                    'mms': is_mms,
                 })
             return messages
 
