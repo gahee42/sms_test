@@ -13,6 +13,7 @@ import time
 import aiohttp
 
 from services.modem import RECONNECT_INTERVAL
+from services import slack
 
 POLL_INTERVAL = int(os.getenv('POLL_INTERVAL', '5'))
 API_URL = os.getenv('API_URL', 'http://localhost:3000/v1/sms')
@@ -29,6 +30,7 @@ async def poll_loop(modem):
                 if not await modem.reconnect():
                     await asyncio.sleep(RECONNECT_INTERVAL)
                     continue
+                asyncio.create_task(slack.modem_status('연결됨'))
 
             try:
                 # 1. 수신
@@ -36,6 +38,7 @@ async def poll_loop(modem):
 
                 if messages:
                     print(f'[폴러] 안읽은 SMS {len(messages)}건 발견')
+                    asyncio.create_task(slack.sms_received(messages))
 
                     # 2. 서버 API로 전송 → 답장 받기
                     start = time.time()
@@ -54,6 +57,7 @@ async def poll_loop(modem):
                             try:
                                 await modem.send_sms(r['phone'], r['message'])
                                 print(f'[폴러] 답장 발송 → {r["phone"]}')
+                                asyncio.create_task(slack.sms_replied(r['phone'], r['message']))
                                 await asyncio.sleep(2)
                             except Exception as e:
                                 print(f'[폴러] 답장 실패: {e}')
@@ -66,6 +70,7 @@ async def poll_loop(modem):
 
             except Exception as e:
                 print(f'[폴러] 에러: {e}')
+                asyncio.create_task(slack.error('폴러', e))
                 # 모뎀 에러 → 재연결 시도
                 if not await modem.reconnect():
                     await asyncio.sleep(RECONNECT_INTERVAL)
