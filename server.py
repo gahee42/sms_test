@@ -9,17 +9,15 @@ API:
   GET  /v1/sms  — 저장된 SMS 목록 조회
 """
 import asyncio
-import json
 import os
-from pathlib import Path
 
 from aiohttp import web
 
 from services.modem import ModemService
-from services.poller import poll_loop, save_and_reply
+from services.poller import poll_loop
+from services import storage, reply
 
 PORT = int(os.getenv('PORT', '3000'))
-LOG_PATH = Path(__file__).parent / 'sms_log.jsonl'
 
 
 # ──────────────────────────────────────────────
@@ -28,25 +26,19 @@ LOG_PATH = Path(__file__).parent / 'sms_log.jsonl'
 async def receive_sms(request: web.Request) -> web.Response:
     """POST /v1/sms — SMS 수신 저장 + echo 답장"""
     body = await request.json()
-    result = save_and_reply(
-        body.get('imei', ''),
-        body.get('msisdn', ''),
-        body.get('messages', []),
-    )
-    return web.json_response(result)
+    imei = body.get('imei', '')
+    msisdn = body.get('msisdn', '')
+    messages = body.get('messages', [])
+
+    storage.save(imei, msisdn, messages)
+    replies = reply.generate(messages)
+
+    return web.json_response({'ok': True, 'replies': replies})
 
 
 async def list_sms(request: web.Request) -> web.Response:
     """GET /v1/sms — 저장된 SMS 목록"""
-    if not LOG_PATH.exists():
-        return web.json_response([])
-
-    entries = []
-    for line in LOG_PATH.read_text().strip().split('\n'):
-        if line:
-            entries.append(json.loads(line))
-
-    return web.json_response(entries)
+    return web.json_response(storage.get_all())
 
 
 # ──────────────────────────────────────────────
