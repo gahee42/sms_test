@@ -11,6 +11,9 @@ API:
 import asyncio
 import os
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from aiohttp import web
 
 from services.modem import ModemService

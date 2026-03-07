@@ -1,3 +1,4 @@
 huawei-lte-api
 requests
 aiohttp
+python-dotenv
