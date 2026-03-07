@@ -12,7 +12,7 @@ import time
 
 import aiohttp
 
-from services.modem import RECONNECT_INTERVAL
+from services.modem import RECONNECT_INTERVAL, SMS_CLEANUP_THRESHOLD
 from services import slack
 
 POLL_INTERVAL = int(os.getenv('POLL_INTERVAL', '5'))
@@ -68,6 +68,16 @@ async def poll_loop(modem):
                             await modem.set_read(msg['index'])
                     else:
                         print(f'[{tag}] 서버 응답 실패: {result}')
+
+                # 5. SMS 용량 체크 → 읽은 SMS 정리
+                try:
+                    total = await modem.get_sms_count()
+                    if total >= SMS_CLEANUP_THRESHOLD:
+                        print(f'[{tag}] SMS {total}건 → 정리 시작 (임계값: {SMS_CLEANUP_THRESHOLD})')
+                        deleted = await modem.cleanup_read_sms()
+                        asyncio.create_task(slack.notify(f'🧹 {tag} SMS 정리: {deleted}건 삭제 (총 {total}건)'))
+                except Exception as e:
+                    print(f'[{tag}] SMS 정리 에러: {e}')
 
             except Exception as e:
                 print(f'[{tag}] 에러: {e}')

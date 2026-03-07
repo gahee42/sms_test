@@ -10,6 +10,8 @@ from huawei_lte_api.enums.sms import BoxTypeEnum
 MMS_PATTERN = '¾¯'
 
 RECONNECT_INTERVAL = 10  # 재연결 시도 간격 (초)
+SMS_MAX = 500
+SMS_CLEANUP_THRESHOLD = int(SMS_MAX * 0.7)  # 350개
 MODEMS_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'modems.json')
 
 
@@ -117,6 +119,42 @@ class ModemService:
     async def delete_sms(self, index: int):
         """SMS 삭제"""
         await asyncio.to_thread(self.client.sms.delete_sms, index)
+
+    async def get_sms_count(self) -> int:
+        """SMS 총 개수 (수신+발신) 조회"""
+        def _count():
+            info = self.client.sms.sms_count()
+            inbox = int(info.get('LocalInbox', 0))
+            outbox = int(info.get('LocalOutbox', 0))
+            draft = int(info.get('LocalDraft', 0))
+            return inbox + outbox + draft
+        return await asyncio.to_thread(_count)
+
+    async def cleanup_read_sms(self):
+        """읽은 SMS만 삭제하여 용량 확보"""
+        def _get_read():
+            sms_list = self.client.sms.get_sms_list(
+                1, box_type=BoxTypeEnum.LOCAL_INBOX,
+                read_count=50, sort_type=0, ascending=1,
+            )
+            raw = sms_list.get('Messages', {}).get('Message', [])
+            if isinstance(raw, dict):
+                raw = [raw]
+            return [int(sms['Index']) for sms in raw if sms.get('Smstat') == '1']
+
+        read_indices = await asyncio.to_thread(_get_read)
+        if not read_indices:
+            return 0
+
+        deleted = 0
+        for index in read_indices:
+            try:
+                await self.delete_sms(index)
+                deleted += 1
+            except Exception:
+                pass
+        print(f'[{self.label}] 읽은 SMS {deleted}건 정리 완료')
+        return deleted
 
     async def disconnect(self):
         """모뎀 연결 해제"""
