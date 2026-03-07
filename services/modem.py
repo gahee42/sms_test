@@ -13,12 +13,16 @@ MODEM_PASS = os.getenv('MODEM_PASS', '')
 MMS_PATTERN = '¾¯'
 
 
+RECONNECT_INTERVAL = 10  # 재연결 시도 간격 (초)
+
+
 class ModemService:
     def __init__(self):
         self.conn = None
         self.client = None
         self.imei = ''
         self.msisdn = ''
+        self.connected = False
 
     async def connect(self):
         """모뎀 연결 + 기기 정보 획득"""
@@ -31,7 +35,20 @@ class ModemService:
             return info
 
         info = await asyncio.to_thread(_connect)
+        self.connected = True
         print(f'[모뎀] 연결됨: {info.get("DeviceName")} (IMEI: {self.imei})')
+
+    async def reconnect(self):
+        """모뎀 재연결 시도"""
+        self.connected = False
+        await self.disconnect()
+        print(f'[모뎀] 재연결 시도 중...')
+        try:
+            await self.connect()
+            return True
+        except Exception as e:
+            print(f'[모뎀] 재연결 실패: {e} ({RECONNECT_INTERVAL}초 후 재시도)')
+            return False
 
     async def get_unread_sms(self) -> list:
         """안읽은 SMS 목록 조회 (MMS 자동 삭제)"""
