@@ -38,7 +38,8 @@ class ModemService:
         def _get():
             sms_list = self.client.sms.get_sms_list(
                 1, box_type=BoxTypeEnum.LOCAL_INBOX,
-                read_count=50, unread_preferred=True
+                read_count=50, sort_type=0, ascending=1,
+                unread_preferred=True
             )
             raw = sms_list.get('Messages', {}).get('Message', [])
             if isinstance(raw, dict):
@@ -52,7 +53,8 @@ class ModemService:
                 content = sms.get('Content') or ''
                 index = int(sms.get('Index', 0))
 
-                is_mms = MMS_PATTERN in content
+                sms_type = int(sms.get('SmsType', 1))
+                is_mms = MMS_PATTERN in content or sms_type == 5
                 if is_mms:
                     print(f'[모뎀] MMS 감지 [{index}]')
 
@@ -61,7 +63,7 @@ class ModemService:
                     'phone': sms.get('Phone', ''),
                     'content': content,
                     'date': sms.get('Date', ''),
-                    'smsType': int(sms.get('SmsType', 1)),
+                    'smsType': sms_type,
                     'mms': is_mms,
                 })
             return messages
