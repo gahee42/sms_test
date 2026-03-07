@@ -9,7 +9,7 @@ def generate(messages: list) -> list:
     replies = []
     for msg in messages:
         if msg.get('mms'):
-            text = '지원하지 않는 형식의 문자입니다.'
+            text = '[AI 발신] 지원하지 않는 형식의 문자입니다.'
         else:
             text = f'[AI 발신] {msg.get("content", "")}'
 
