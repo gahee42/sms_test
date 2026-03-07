@@ -24,6 +24,12 @@ async def poll_loop(modem):
 
     async with aiohttp.ClientSession() as session:
         while True:
+            # 모뎀 미연결 → 재연결 시도
+            if not modem.connected:
+                if not await modem.reconnect():
+                    await asyncio.sleep(RECONNECT_INTERVAL)
+                    continue
+
             try:
                 # 1. 수신
                 messages = await modem.get_unread_sms()

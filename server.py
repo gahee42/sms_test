@@ -33,10 +33,10 @@ async def on_startup(app: web.Application):
     """서버 시작 시 모뎀 연결 + 폴링 시작"""
     try:
         await modem.connect()
-        app['poller_task'] = asyncio.create_task(poll_loop(modem))
     except Exception as e:
-        print(f'[서버] 모뎀 연결 실패: {e}')
-        print(f'[서버] API만 실행됩니다 (폴링 없음)')
+        print(f'[서버] 모뎀 초기 연결 실패: {e}')
+        print(f'[서버] 폴링 루프에서 재연결 시도합니다')
+    app['poller_task'] = asyncio.create_task(poll_loop(modem))
 
 
 async def on_cleanup(app: web.Application):
