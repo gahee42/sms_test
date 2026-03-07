@@ -16,6 +16,7 @@ import os
 import re
 import time
 
+import requests
 from huawei_lte_api.Client import Client
 from huawei_lte_api.Connection import Connection
 from huawei_lte_api.enums.sms import BoxTypeEnum
@@ -23,32 +24,34 @@ from huawei_lte_api.enums.sms import BoxTypeEnum
 MODEM_URL = os.getenv('MODEM_URL', '')
 MODEM_USER = os.getenv('MODEM_USER', '')
 MODEM_PASS = os.getenv('MODEM_PASS', '')
+API_URL = os.getenv('API_URL', 'http://localhost:3000/v1/sms')
 
 # MMS 감지 패턴
 MMS_PATTERN = '¾¯'
 
 
 # ──────────────────────────────────────────────
-# Mock 서버 (실제 서버 구현 전 테스트용)
+# 서버 요청
 # ──────────────────────────────────────────────
-def mock_server_request(imei: str, msisdn: str, messages: list) -> dict:
-    """서버 POST /v1/sms 를 흉내냄"""
-    print(f'\n📡 [서버 전송] imei={imei}, msisdn={msisdn}')
-    print(f'   메시지 {len(messages)}건:')
+def server_request(imei: str, msisdn: str, messages: list) -> dict:
+    """서버 POST /v1/sms 로 SMS 전송"""
+    print(f'\n📡 [서버 전송] {API_URL}')
+    print(f'   imei={imei}, msisdn={msisdn}, 메시지 {len(messages)}건')
     for msg in messages:
         print(f'   - [{msg["index"]}] {msg["phone"]}: {msg["content"]}')
 
-    # mock 응답: 모든 메시지에 답장
-    replies = []
-    for msg in messages:
-        replies.append({
-            'phone': msg['phone'],
-            'message': '답장 보낼거',
+    try:
+        res = requests.post(API_URL, json={
+            'imei': imei,
+            'msisdn': msisdn,
+            'messages': messages,
         })
-
-    response = {'ok': True, 'replies': replies}
-    print(f'   ← 서버 응답: {json.dumps(response, ensure_ascii=False)}')
-    return response
+        response = res.json()
+        print(f'   ← 서버 응답 ({res.status_code}): {json.dumps(response, ensure_ascii=False)}')
+        return response
+    except Exception as e:
+        print(f'   ❌ 서버 요청 실패: {e}')
+        return {'ok': False, 'replies': []}
 
 
 # ──────────────────────────────────────────────
@@ -203,7 +206,7 @@ def main():
             return
 
         # [2-3] 서버에 전송 + 응답 받기
-        server_resp = mock_server_request(imei, msisdn, messages)
+        server_resp = server_request(imei, msisdn, messages)
 
         if not server_resp.get('ok'):
             print('\n❌ 서버 응답 실패. 종료.')

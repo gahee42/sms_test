@@ -1,2 +1,3 @@
 huawei-lte-api
 requests
+aiohttp
