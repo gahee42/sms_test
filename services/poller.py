@@ -21,7 +21,8 @@ API_URL = os.getenv('API_URL', 'http://localhost:3000/v1/sms')
 
 async def poll_loop(modem):
     """폴링 루프 — 서버 startup 시 백그라운드로 실행됨"""
-    print(f'[폴러] {POLL_INTERVAL}초 간격 폴링 시작')
+    tag = modem.label
+    print(f'[{tag}] {POLL_INTERVAL}초 간격 폴링 시작')
 
     async with aiohttp.ClientSession() as session:
         while True:
@@ -30,14 +31,14 @@ async def poll_loop(modem):
                 if not await modem.reconnect():
                     await asyncio.sleep(RECONNECT_INTERVAL)
                     continue
-                asyncio.create_task(slack.modem_status('연결됨'))
+                asyncio.create_task(slack.modem_status(f'{tag} 연결됨'))
 
             try:
                 # 1. 수신
                 messages = await modem.get_unread_sms()
 
                 if messages:
-                    print(f'[폴러] 안읽은 SMS {len(messages)}건 발견')
+                    print(f'[{tag}] 안읽은 SMS {len(messages)}건 발견')
                     asyncio.create_task(slack.sms_received(messages))
 
                     # 2. 서버 API로 전송 → 답장 받기
@@ -49,28 +50,28 @@ async def poll_loop(modem):
                     }) as resp:
                         result = await resp.json()
                     elapsed = round(time.time() - start, 2)
-                    print(f'[폴러] 서버 응답 ({resp.status}) {elapsed}초')
+                    print(f'[{tag}] 서버 응답 ({resp.status}) {elapsed}초')
 
                     if result.get('ok'):
                         # 3. 답장 발송 (모뎀 처리 간격 2초)
                         for r in result.get('replies', []):
                             try:
                                 await modem.send_sms(r['phone'], r['message'])
-                                print(f'[폴러] 답장 발송 → {r["phone"]}')
+                                print(f'[{tag}] 답장 발송 → {r["phone"]}')
                                 asyncio.create_task(slack.sms_replied(r['phone'], r['message']))
                                 await asyncio.sleep(2)
                             except Exception as e:
-                                print(f'[폴러] 답장 실패: {e}')
+                                print(f'[{tag}] 답장 실패: {e}')
 
                         # 4. 읽음 처리
                         for msg in messages:
                             await modem.set_read(msg['index'])
                     else:
-                        print(f'[폴러] 서버 응답 실패: {result}')
+                        print(f'[{tag}] 서버 응답 실패: {result}')
 
             except Exception as e:
-                print(f'[폴러] 에러: {e}')
-                asyncio.create_task(slack.error('폴러', e))
+                print(f'[{tag}] 에러: {e}')
+                asyncio.create_task(slack.error(tag, e))
                 # 모뎀 에러 → 재연결 시도
                 if not await modem.reconnect():
                     await asyncio.sleep(RECONNECT_INTERVAL)

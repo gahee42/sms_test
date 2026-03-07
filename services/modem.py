@@ -1,23 +1,42 @@
 """모뎀 통신 서비스 — huawei-lte-api 래핑"""
 import asyncio
+import json
 import os
 
 from huawei_lte_api.Client import Client
 from huawei_lte_api.Connection import Connection
 from huawei_lte_api.enums.sms import BoxTypeEnum
 
-MODEM_URL = os.getenv('MODEM_URL', '')
-MODEM_USER = os.getenv('MODEM_USER', '')
-MODEM_PASS = os.getenv('MODEM_PASS', '')
-
 MMS_PATTERN = '¾¯'
 
-
 RECONNECT_INTERVAL = 10  # 재연결 시도 간격 (초)
+MODEMS_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'modems.json')
+
+
+def load_modem_configs() -> list:
+    """modems.json → ModemService 리스트 생성"""
+    with open(MODEMS_PATH) as f:
+        configs = json.load(f)
+
+    modems = []
+    for i, cfg in enumerate(configs, 1):
+        password = os.getenv(cfg.get('env_pass', ''), '')
+        modem = ModemService(
+            url=cfg['url'],
+            user=cfg.get('user', 'admin'),
+            password=password,
+            label=f'모뎀{i}',
+        )
+        modems.append(modem)
+    return modems
 
 
 class ModemService:
-    def __init__(self):
+    def __init__(self, url: str, user: str, password: str, label: str = '모뎀'):
+        self.url = url
+        self.user = user
+        self.password = password
+        self.label = label
         self.conn = None
         self.client = None
         self.imei = ''
@@ -27,7 +46,7 @@ class ModemService:
     async def connect(self):
         """모뎀 연결 + 기기 정보 획득"""
         def _connect():
-            self.conn = Connection(MODEM_URL, username=MODEM_USER, password=MODEM_PASS)
+            self.conn = Connection(self.url, username=self.user, password=self.password)
             self.client = Client(self.conn)
             info = self.client.device.information()
             self.imei = info.get('Imei', '')
@@ -36,18 +55,18 @@ class ModemService:
 
         info = await asyncio.to_thread(_connect)
         self.connected = True
-        print(f'[모뎀] 연결됨: {info.get("DeviceName")} (IMEI: {self.imei})')
+        print(f'[{self.label}] 연결됨: {info.get("DeviceName")} (IMEI: {self.imei})')
 
     async def reconnect(self):
         """모뎀 재연결 시도"""
         self.connected = False
         await self.disconnect()
-        print(f'[모뎀] 재연결 시도 중...')
+        print(f'[{self.label}] 재연결 시도 중...')
         try:
             await self.connect()
             return True
         except Exception as e:
-            print(f'[모뎀] 재연결 실패: {e} ({RECONNECT_INTERVAL}초 후 재시도)')
+            print(f'[{self.label}] 재연결 실패: {e} ({RECONNECT_INTERVAL}초 후 재시도)')
             return False
 
     async def get_unread_sms(self) -> list:
@@ -73,7 +92,7 @@ class ModemService:
                 sms_type = int(sms.get('SmsType', 1))
                 is_mms = MMS_PATTERN in content or sms_type == 5
                 if is_mms:
-                    print(f'[모뎀] MMS 감지 [{index}]')
+                    print(f'[{self.label}] MMS 감지 [{index}]')
 
                 messages.append({
                     'index': index,

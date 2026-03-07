@@ -16,7 +16,7 @@ load_dotenv()
 
 from aiohttp import web
 
-from services.modem import ModemService
+from services.modem import load_modem_configs
 from services.poller import poll_loop
 from routes import sms as sms_routes
 
@@ -26,25 +26,29 @@ PORT = int(os.getenv('PORT', '3000'))
 # ──────────────────────────────────────────────
 # 서버 시작/종료
 # ──────────────────────────────────────────────
-modem = ModemService()
+modems = load_modem_configs()
 
 
 async def on_startup(app: web.Application):
     """서버 시작 시 모뎀 연결 + 폴링 시작"""
-    try:
-        await modem.connect()
-    except Exception as e:
-        print(f'[서버] 모뎀 초기 연결 실패: {e}')
-        print(f'[서버] 폴링 루프에서 재연결 시도합니다')
-    app['poller_task'] = asyncio.create_task(poll_loop(modem))
+    app['poller_tasks'] = []
+    for modem in modems:
+        try:
+            await modem.connect()
+        except Exception as e:
+            print(f'[서버] {modem.label} 초기 연결 실패: {e}')
+            print(f'[서버] 폴링 루프에서 재연결 시도합니다')
+        task = asyncio.create_task(poll_loop(modem))
+        app['poller_tasks'].append(task)
+    print(f'[서버] {len(modems)}개 모뎀 폴링 시작')
 
 
 async def on_cleanup(app: web.Application):
     """서버 종료 시 정리"""
-    task = app.get('poller_task')
-    if task:
+    for task in app.get('poller_tasks', []):
         task.cancel()
-    await modem.disconnect()
+    for modem in modems:
+        await modem.disconnect()
 
 
 app = web.Application()

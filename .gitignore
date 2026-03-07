@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 sms_log.jsonl
 .env
+modems.json

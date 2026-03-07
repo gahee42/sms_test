@@ -1,0 +1,12 @@
+[
+  {
+    "url": "http://192.168.8.1/",
+    "user": "admin",
+    "env_pass": "MODEM_1_PASS"
+  },
+  {
+    "url": "http://192.168.9.1/",
+    "user": "admin",
+    "env_pass": "MODEM_2_PASS"
+  }
+]
