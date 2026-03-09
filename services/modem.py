@@ -10,6 +10,7 @@ from huawei_lte_api.enums.sms import BoxTypeEnum
 MMS_PATTERN = '¾¯'
 
 RECONNECT_INTERVAL = 10  # 재연결 시도 간격 (초)
+MODEM_TIMEOUT = int(os.getenv('MODEM_TIMEOUT', '30'))  # 모뎀 요청 타임아웃 (초)
 SMS_MAX = 500
 SMS_CLEANUP_THRESHOLD = int(SMS_MAX * 0.7)  # 350개
 MODEMS_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'modems.json')
@@ -44,6 +45,7 @@ class ModemService:
         self.imei = ''
         self.msisdn = ''
         self.connected = False
+        self.last_skipped_mms = 0
 
     async def connect(self):
         """모뎀 연결 + 기기 정보 획득"""
@@ -55,9 +57,14 @@ class ModemService:
             self.msisdn = info.get('Msisdn', '')
             return info
 
-        info = await asyncio.to_thread(_connect)
+        info = await asyncio.wait_for(asyncio.to_thread(_connect), timeout=MODEM_TIMEOUT)
         self.connected = True
-        print(f'[{self.label}] 연결됨: {info.get("DeviceName")} (IMEI: {self.imei})')
+
+        if not self.msisdn:
+            self.connected = False
+            raise Exception(f'MSISDN 조회 불가 — SIM 카드 확인 필요')
+
+        print(f'[{self.label}] 연결됨: {info.get("DeviceName")} (MSISDN: {self.msisdn})')
 
     async def reconnect(self):
         """모뎀 재연결 시도"""
@@ -71,8 +78,51 @@ class ModemService:
             print(f'[{self.label}] 재연결 실패: {e} ({RECONNECT_INTERVAL}초 후 재시도)')
             return False
 
+    def _parse_sms_raw(self, raw: list) -> list:
+        """SMS raw 데이터 → 메시지 리스트 파싱"""
+        if isinstance(raw, dict):
+            raw = [raw]
+
+        messages = []
+        seen = set()
+        for sms in raw:
+            if sms.get('Smstat') != '0':
+                continue
+
+            content = sms.get('Content') or ''
+            index = int(sms.get('Index', 0))
+            phone = sms.get('Phone', '')
+            date = sms.get('Date', '')
+
+            sms_type = int(sms.get('SmsType', 1))
+            is_mms = MMS_PATTERN in content or sms_type == 5
+
+            # MMS 중복 제거 (같은 번호 + 날짜 + 내용)
+            dedup_key = (phone, date, content)
+            if dedup_key in seen:
+                print(f'[{self.label}] MMS 중복 스킵 [{index}] {phone}')
+                messages.append({
+                    'index': index,
+                    '_duplicate': True,
+                })
+                continue
+            seen.add(dedup_key)
+
+            if is_mms:
+                print(f'[{self.label}] MMS 감지 [{index}]')
+
+            messages.append({
+                'index': index,
+                'phone': phone,
+                'content': content,
+                'date': date,
+                'smsType': sms_type,
+                'mms': is_mms,
+            })
+        return messages
+
     async def get_unread_sms(self) -> list:
-        """안읽은 SMS 목록 조회 (MMS 자동 삭제)"""
+        """안읽은 SMS 목록 조회 (XML 파싱 에러 시 개별 조회 fallback)"""
         def _get():
             sms_list = self.client.sms.get_sms_list(
                 1, box_type=BoxTypeEnum.LOCAL_INBOX,
@@ -80,45 +130,50 @@ class ModemService:
                 unread_preferred=True
             )
             raw = sms_list.get('Messages', {}).get('Message', [])
-            if isinstance(raw, dict):
-                raw = [raw]
+            return self._parse_sms_raw(raw)
 
+        def _get_one_by_one():
+            """XML 파싱 에러 시 메시지를 1건씩 조회"""
             messages = []
-            for sms in raw:
-                if sms.get('Smstat') != '0':
+            skipped = 0
+            for page in range(1, 51):
+                try:
+                    sms_list = self.client.sms.get_sms_list(
+                        page, box_type=BoxTypeEnum.LOCAL_INBOX,
+                        read_count=1, sort_type=0, ascending=1,
+                        unread_preferred=True
+                    )
+                    raw = sms_list.get('Messages', {}).get('Message', [])
+                    if not raw:
+                        break
+                    messages.extend(self._parse_sms_raw(raw))
+                except Exception:
+                    skipped += 1
                     continue
-
-                content = sms.get('Content') or ''
-                index = int(sms.get('Index', 0))
-
-                sms_type = int(sms.get('SmsType', 1))
-                is_mms = MMS_PATTERN in content or sms_type == 5
-                if is_mms:
-                    print(f'[{self.label}] MMS 감지 [{index}]')
-
-                messages.append({
-                    'index': index,
-                    'phone': sms.get('Phone', ''),
-                    'content': content,
-                    'date': sms.get('Date', ''),
-                    'smsType': sms_type,
-                    'mms': is_mms,
-                })
+            self.last_skipped_mms = skipped
+            if skipped:
+                print(f'[{self.label}] XML 파싱 실패 {skipped}건 스킵 (MMS)')
             return messages
 
-        return await asyncio.to_thread(_get)
+        try:
+            return await asyncio.wait_for(asyncio.to_thread(_get), timeout=MODEM_TIMEOUT)
+        except Exception as e:
+            if 'not well-formed' not in str(e) and 'invalid token' not in str(e):
+                raise
+            print(f'[{self.label}] XML 파싱 에러 — 개별 조회 시도')
+            return await asyncio.wait_for(asyncio.to_thread(_get_one_by_one), timeout=MODEM_TIMEOUT)
 
     async def set_read(self, index: int):
         """SMS 읽음 처리"""
-        await asyncio.to_thread(self.client.sms.set_read, index)
+        await asyncio.wait_for(asyncio.to_thread(self.client.sms.set_read, index), timeout=MODEM_TIMEOUT)
 
     async def send_sms(self, phone: str, message: str):
         """SMS 발송"""
-        await asyncio.to_thread(self.client.sms.send_sms, [phone], message)
+        await asyncio.wait_for(asyncio.to_thread(self.client.sms.send_sms, [phone], message), timeout=MODEM_TIMEOUT)
 
     async def delete_sms(self, index: int):
         """SMS 삭제"""
-        await asyncio.to_thread(self.client.sms.delete_sms, index)
+        await asyncio.wait_for(asyncio.to_thread(self.client.sms.delete_sms, index), timeout=MODEM_TIMEOUT)
 
     async def get_sms_count(self) -> int:
         """SMS 총 개수 (수신+발신) 조회"""
@@ -128,38 +183,53 @@ class ModemService:
             outbox = int(info.get('LocalOutbox', 0))
             draft = int(info.get('LocalDraft', 0))
             return inbox + outbox + draft
-        return await asyncio.to_thread(_count)
+        return await asyncio.wait_for(asyncio.to_thread(_count), timeout=MODEM_TIMEOUT)
 
     async def cleanup_read_sms(self):
-        """읽은 SMS만 삭제하여 용량 확보"""
-        def _get_read():
-            sms_list = self.client.sms.get_sms_list(
+        """읽은 수신 SMS + 발신 SMS 삭제하여 용량 확보"""
+        def _get_targets():
+            indices = []
+
+            # 수신함 — 읽은 것만 (Smstat == '1')
+            inbox = self.client.sms.get_sms_list(
                 1, box_type=BoxTypeEnum.LOCAL_INBOX,
                 read_count=50, sort_type=0, ascending=1,
             )
-            raw = sms_list.get('Messages', {}).get('Message', [])
+            raw = inbox.get('Messages', {}).get('Message', [])
             if isinstance(raw, dict):
                 raw = [raw]
-            return [int(sms['Index']) for sms in raw if sms.get('Smstat') == '1']
+            indices += [int(sms['Index']) for sms in raw if sms.get('Smstat') == '1']
 
-        read_indices = await asyncio.to_thread(_get_read)
-        if not read_indices:
+            # 발신함 — 전체
+            outbox = self.client.sms.get_sms_list(
+                1, box_type=BoxTypeEnum.LOCAL_OUTBOX,
+                read_count=50, sort_type=0, ascending=1,
+            )
+            raw = outbox.get('Messages', {}).get('Message', [])
+            if isinstance(raw, dict):
+                raw = [raw]
+            indices += [int(sms['Index']) for sms in raw]
+
+            return indices
+
+        targets = await asyncio.wait_for(asyncio.to_thread(_get_targets), timeout=MODEM_TIMEOUT)
+        if not targets:
             return 0
 
         deleted = 0
-        for index in read_indices:
+        for index in targets:
             try:
                 await self.delete_sms(index)
                 deleted += 1
             except Exception:
                 pass
-        print(f'[{self.label}] 읽은 SMS {deleted}건 정리 완료')
+        print(f'[{self.label}] SMS {deleted}건 정리 완료 (수신 읽음 + 발신)')
         return deleted
 
     async def disconnect(self):
         """모뎀 연결 해제"""
         if self.conn:
             try:
-                await asyncio.to_thread(self.conn.close)
+                await asyncio.wait_for(asyncio.to_thread(self.conn.close), timeout=MODEM_TIMEOUT)
             except Exception:
                 pass
