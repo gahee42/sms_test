@@ -47,6 +47,14 @@ async def poll_loop(modem):
                     asyncio.create_task(slack.poll_ok(tag, modem.msisdn))
 
                 if messages:
+                    # 이미 읽은 MMS → 서버 전송 없이 바로 삭제
+                    read_mms = [m for m in messages if m.get('_read_mms')]
+                    for m in read_mms:
+                        await modem.delete_sms(m['index'])
+                        print(f'[{tag}] 읽은 MMS 삭제 [{m["index"]}]')
+                    messages = [m for m in messages if not m.get('_read_mms')]
+
+                if messages:
                     # MMS 중복 분리 (읽음 처리용 index만 보관)
                     duplicates = [m for m in messages if m.get('_duplicate')]
                     unique = [m for m in messages if not m.get('_duplicate')]

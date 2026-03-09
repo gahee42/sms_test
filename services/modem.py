@@ -88,16 +88,26 @@ class ModemService:
         messages = []
         seen = set()
         for sms in raw:
-            if sms.get('Smstat') != '0':
-                continue
-
             content = sms.get('Content') or ''
             index = int(sms.get('Index', 0))
             phone = sms.get('Phone', '')
             date = sms.get('Date', '')
+            is_read = sms.get('Smstat') != '0'
 
             sms_type = int(sms.get('SmsType', 1))
             is_mms = MMS_PATTERN in content or sms_type == 5
+
+            # 읽은 메시지는 스킵 (단, 읽은 MMS는 삭제 대상으로 포함)
+            if is_read and not is_mms:
+                continue
+            if is_read and is_mms:
+                print(f'[{self.label}] 읽은 MMS 삭제 대상 [{index}]')
+                messages.append({
+                    'index': index,
+                    'mms': True,
+                    '_read_mms': True,
+                })
+                continue
 
             # MMS 중복 제거 (같은 번호 + 날짜 + 내용)
             dedup_key = (phone, date, content)
