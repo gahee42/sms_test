@@ -2,6 +2,9 @@
 import asyncio
 import json
 import os
+import re
+
+import xmltodict
 
 from huawei_lte_api.Client import Client
 from huawei_lte_api.Connection import Connection
@@ -45,7 +48,6 @@ class ModemService:
         self.imei = ''
         self.msisdn = ''
         self.connected = False
-        self.last_skipped_mms = 0
 
     async def connect(self):
         """모뎀 연결 + 기기 정보 획득"""
@@ -132,36 +134,55 @@ class ModemService:
             raw = sms_list.get('Messages', {}).get('Message', [])
             return self._parse_sms_raw(raw)
 
-        def _get_one_by_one():
-            """XML 파싱 에러 시 메시지를 1건씩 조회"""
-            messages = []
-            skipped = 0
-            for page in range(1, 51):
-                try:
-                    sms_list = self.client.sms.get_sms_list(
-                        page, box_type=BoxTypeEnum.LOCAL_INBOX,
-                        read_count=1, sort_type=0, ascending=1,
-                        unread_preferred=True
-                    )
-                    raw = sms_list.get('Messages', {}).get('Message', [])
-                    if not raw:
-                        break
-                    messages.extend(self._parse_sms_raw(raw))
-                except Exception:
-                    skipped += 1
-                    continue
-            self.last_skipped_mms = skipped
-            if skipped:
-                print(f'[{self.label}] XML 파싱 실패 {skipped}건 스킵 (MMS)')
-            return messages
+        def _get_raw_xml():
+            """XML 파싱 에러 시 raw XML 직접 요청 → invalid 문자 제거 후 파싱"""
+            body = xmltodict.unparse({'request': {
+                'PageIndex': 1,
+                'ReadCount': 50,
+                'BoxType': 1,
+                'SortType': 0,
+                'Ascending': 1,
+                'UnreadPreferred': 1,
+            }}).encode('utf-8')
+
+            headers = {'Content-Type': 'application/xml'}
+            if self.conn.request_verification_tokens:
+                if len(self.conn.request_verification_tokens) > 1:
+                    headers['__RequestVerificationToken'] = self.conn.request_verification_tokens.pop(0)
+                else:
+                    headers['__RequestVerificationToken'] = self.conn.request_verification_tokens[0]
+
+            resp = self.conn.requests_session.post(
+                f'{self.conn.url}api/sms/sms-list',
+                data=body,
+                headers=headers,
+                timeout=MODEM_TIMEOUT,
+            )
+
+            # 응답 CSRF 토큰 갱신
+            if '__RequestVerificationTokenone' in resp.headers:
+                self.conn.request_verification_tokens.append(resp.headers['__RequestVerificationTokenone'])
+                if '__RequestVerificationTokentwo' in resp.headers:
+                    self.conn.request_verification_tokens.append(resp.headers['__RequestVerificationTokentwo'])
+            elif '__RequestVerificationToken' in resp.headers:
+                self.conn.request_verification_tokens.append(resp.headers['__RequestVerificationToken'])
+
+            # XML invalid 문자 제거 (제어 문자 등)
+            raw_xml = resp.content.decode('utf-8', errors='replace')
+            clean_xml = re.sub(r'[^\x09\x0A\x0D\x20-\uD7FF\uE000-\uFFFD]', '', raw_xml)
+
+            data = xmltodict.parse(clean_xml, dict_constructor=dict)
+            sms_list = data.get('response', {})
+            raw = sms_list.get('Messages', {}).get('Message', [])
+            return self._parse_sms_raw(raw)
 
         try:
             return await asyncio.wait_for(asyncio.to_thread(_get), timeout=MODEM_TIMEOUT)
         except Exception as e:
             if 'not well-formed' not in str(e) and 'invalid token' not in str(e):
                 raise
-            print(f'[{self.label}] XML 파싱 에러 — 개별 조회 시도')
-            return await asyncio.wait_for(asyncio.to_thread(_get_one_by_one), timeout=MODEM_TIMEOUT)
+            print(f'[{self.label}] XML 파싱 에러 — raw XML 직접 조회')
+            return await asyncio.wait_for(asyncio.to_thread(_get_raw_xml), timeout=MODEM_TIMEOUT)
 
     async def set_read(self, index: int):
         """SMS 읽음 처리"""

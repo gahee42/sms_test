@@ -41,11 +41,7 @@ async def poll_loop(modem):
                     asyncio.create_task(slack.modem_connected(tag, modem.msisdn))
 
                 # 1. 수신
-                modem.last_skipped_mms = 0
                 messages = await modem.get_unread_sms()
-
-                if modem.last_skipped_mms:
-                    asyncio.create_task(slack.mms_parse_skipped(tag, modem.last_skipped_mms))
 
                 if not messages:
                     asyncio.create_task(slack.poll_ok(tag, modem.msisdn))
