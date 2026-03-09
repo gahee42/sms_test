@@ -123,9 +123,12 @@ async def poll_loop(modem):
                         print(f'[{tag}] 서버 응답 실패: {result}')
                         asyncio.create_task(slack.server_response_failed(tag, result))
 
-                    # 5. 읽음 처리 (서버 응답 무관하게 처리)
+                    # 5. 읽음 처리 + MMS 삭제
                     for msg in messages:
                         await modem.set_read(msg['index'])
+                        if msg.get('mms') or msg.get('_duplicate'):
+                            await modem.delete_sms(msg['index'])
+                            print(f'[{tag}] MMS 삭제 [{msg["index"]}]')
 
                 # 6. SMS 용량 체크 → 임계치 이하로 떨어질 때까지 반복 정리
                 try:
