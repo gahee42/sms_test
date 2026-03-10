@@ -93,6 +93,9 @@ async def poll_loop(modem):
                         # 3. 답장 발송 — 스팸 필터링 (추후 서버 전환)
                         spam_phones = set(result.get('spam', []))
                         spam_phones |= {m['phone'] for m in unique if is_spam(m)}
+                        # 자기 자신 번호 → 답장 무한루프 방지
+                        if modem.msisdn:
+                            spam_phones.add(modem.msisdn)
                         sent = []
                         for r in result.get('replies', []):
                             if r['phone'] in spam_phones:
