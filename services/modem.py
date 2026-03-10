@@ -233,7 +233,7 @@ class ModemService:
 
             # 발신함 — 전체
             outbox = self.client.sms.get_sms_list(
-                1, box_type=BoxTypeEnum.LOCAL_OUTBOX,
+                1, box_type=BoxTypeEnum.LOCAL_SENT,
                 read_count=50, sort_type=0, ascending=1,
             )
             raw = outbox.get('Messages', {}).get('Message', [])
